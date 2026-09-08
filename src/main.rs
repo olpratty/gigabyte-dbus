@@ -1,10 +1,9 @@
 mod platform;
 
-use std::{error::Error, future::pending, env};
+use std::{env, error::Error, future::pending};
 use zbus::Connection;
 
 use crate::platform::CtrlPlatform;
-
 
 // Although we use `async-std` here, you can use any async runtime of choice.
 #[async_std::main]
@@ -34,14 +33,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let connection = Connection::system().await?;
 
     // Setup interface for kernel driver
-    match CtrlPlatform::new() {
-        Ok(ctrl) => {
-            connection.object_server().at("/com/gigabyte/Platform", ctrl).await.ok();
-        }
-        Err(err) => {
-            println!("CtrlPlatform: {:?}", err);
-        }
-    }
+    let ctrl = CtrlPlatform::new().map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not initialize the AORUS platform device",
+        )
+    })?;
+
+    connection
+        .object_server()
+        .at("/com/gigabyte/Platform", ctrl)
+        .await?;
 
     // Request name
     if is_debug {

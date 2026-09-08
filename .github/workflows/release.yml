@@ -1,0 +1,70 @@
+name: Release AORUS gigabyted
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:44
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            git rust cargo gcc pkgconf-pkg-config systemd-devel \
+            python3 tar gzip
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          if tag != f"v{version}":
+              raise SystemExit(f"Tag {tag} does not match Cargo version {version}")
+          PY
+
+      - name: Build daemon
+        run: cargo build --locked --release --bin gigabyted
+
+      - name: Prepare release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release/package
+
+          install -m755 target/release/gigabyted release/package/gigabyted
+          install -m644 \
+            gigabyted.service \
+            gigabyted.conf \
+            gigabyted.sysusers \
+            LICENSE \
+            release/package/
+
+          tar -C release/package -czf release/gigabyted-linux-x86_64.tar.gz .
+
+          cd release
+          sha256sum gigabyted-linux-x86_64.tar.gz > SHA256SUMS
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: |
+            release/gigabyted-linux-x86_64.tar.gz
+            release/SHA256SUMS

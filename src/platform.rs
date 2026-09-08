@@ -3,18 +3,24 @@ use udev::Device;
 use zbus::dbus_interface;
 
 pub struct CtrlPlatform {
-    pub path: PathBuf
+    pub path: PathBuf,
 }
 
 impl CtrlPlatform {
     pub fn new() -> Result<Self, ()> {
-        let mut enumerator = udev::Enumerator::new().unwrap();
+        let mut enumerator = udev::Enumerator::new().map_err(|err| {
+            eprintln!("Could not create platform enumerator: {err}");
+        })?;
 
-        enumerator.match_subsystem("platform").unwrap();
-        enumerator.match_sysname("aorus_laptop").unwrap();
-        if let Some(device) = (enumerator.scan_devices().map_err(|err| {
-            println!("Could not scan devices: {:?}", err)
-        })?)
+        enumerator.match_subsystem("platform").map_err(|err| {
+            eprintln!("Could not match platform subsystem: {err}");
+        })?;
+        enumerator.match_sysname("aorus_laptop").map_err(|err| {
+            eprintln!("Could not match AORUS platform device: {err}");
+        })?;
+        if let Some(device) = (enumerator
+            .scan_devices()
+            .map_err(|err| println!("Could not scan devices: {:?}", err))?)
         .next()
         {
             return Ok(Self {
@@ -28,40 +34,67 @@ impl CtrlPlatform {
 #[dbus_interface(name = "com.gigabyte.Platform")]
 impl CtrlPlatform {
     // TODO: Implement
-    fn set_fan_mode(&self, value: i32) -> i32 {
-        let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("fan_mode", &(value).to_string()).unwrap();
-        0
+    fn set_fan_mode(&self, value: i32) -> zbus::fdo::Result<i32> {
+        if !matches!(value, 0 | 5) {
+            return Err(zbus::fdo::Error::InvalidArgs(
+                "This AORUS integration supports fan modes 0 and 5".into(),
+            ));
+        }
+
+        std::fs::write(self.path.join("fan_mode"), value.to_string()).map_err(|err| {
+            zbus::fdo::Error::Failed(format!("Failed to write fan_mode={value}: {err}"))
+        })?;
+
+        Ok(0)
     }
-    fn set_fan_speed(&self, value: i32) -> i32 {
-        let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("fan_custom_speed", &(value).to_string()).unwrap();
-        0
+    fn set_fan_speed(&self, value: i32) -> zbus::fdo::Result<i32> {
+        // The plugin's tested 10-100% range maps to 23-227.
+        if !(23..=227).contains(&value) {
+            return Err(zbus::fdo::Error::InvalidArgs(
+                "This AORUS integration requires fan speed 23 through 227".into(),
+            ));
+        }
+
+        std::fs::write(self.path.join("fan_custom_speed"), value.to_string()).map_err(|err| {
+            zbus::fdo::Error::Failed(format!("Failed to write fan_custom_speed={value}: {err}"))
+        })?;
+
+        Ok(0)
     }
     fn set_charge_mode(&self, value: i32) -> i32 {
         let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("charge_mode", &(value).to_string()).unwrap();
+        device
+            .set_attribute_value("charge_mode", &(value).to_string())
+            .unwrap();
         0
     }
     fn set_charge_limit(&self, value: i32) -> i32 {
         let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("charge_limit", &(value).to_string()).unwrap();
+        device
+            .set_attribute_value("charge_limit", &(value).to_string())
+            .unwrap();
         0
     }
     fn set_fan_curve_index(&self, value: i32) -> i32 {
         let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("fan_curve_index", &(value).to_string()).unwrap();
+        device
+            .set_attribute_value("fan_curve_index", &(value).to_string())
+            .unwrap();
         0
     }
     fn set_fan_curve_data(&self, speed: i32, temp: i32) -> i32 {
         let value = speed << 8 | temp;
         let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("fan_curve_data", &(value).to_string()).unwrap();
+        device
+            .set_attribute_value("fan_curve_data", &(value).to_string())
+            .unwrap();
         0
     }
     fn set_gpu_boost(&self, value: i32) -> i32 {
         let mut device = Device::from_syspath(&self.path).unwrap();
-        device.set_attribute_value("gpu_boost", &(value).to_string()).unwrap();
+        device
+            .set_attribute_value("gpu_boost", &(value).to_string())
+            .unwrap();
         0
     }
     // get methods
