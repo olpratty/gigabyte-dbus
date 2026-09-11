@@ -52,8 +52,15 @@ vendor directories, and enable gigabyted.service.
 The cc-plugin-user account must exist before the system bus loads its
 policy. The supplied sysusers definition creates it.
 
-The upstream Makefile, RPM spec and udev rules have not been adapted
-for this release-archive deployment.
+The Makefile installs the same five files as the release archive and
+supports DESTDIR for package staging. Build before installing; account
+creation and service activation are separate steps documented in README.md.
+The inherited RPM spec and udev rules are not used by this deployment.
+
+The Bazzite image also provides aorus-plugin-prepare.service. Before
+CoolerControl starts, it refreshes the writable plugin runtime directory
+from the immutable image and copies the packaged SELinux labels.
+This avoids CoolerControl permission-change warnings on read-only /usr.
 
 ## Scope and limitations
 
