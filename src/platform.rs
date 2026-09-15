@@ -7,6 +7,12 @@ pub struct CtrlPlatform {
 }
 
 impl CtrlPlatform {
+    // Only the privileged daemon's service cleanup uses this entry point.
+    // No caller-supplied path or fan value is accepted.
+    pub fn restore_firmware_fan_control(&self) -> std::io::Result<()> {
+        std::fs::write(self.path.join("fan_mode"), "0")
+    }
+
     pub fn new() -> Result<Self, ()> {
         let mut enumerator = udev::Enumerator::new().map_err(|err| {
             eprintln!("Could not create platform enumerator: {err}");
