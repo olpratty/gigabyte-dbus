@@ -561,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "gigabyted"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "async-std",
  "udev",
