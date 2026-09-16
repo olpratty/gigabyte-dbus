@@ -8,6 +8,24 @@ use crate::platform::CtrlPlatform;
 // Although we use `async-std` here, you can use any async runtime of choice.
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    if !args.is_empty() {
+        if args.len() != 1 || args[0] != "--restore-fan-auto" {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Usage: gigabyted [--restore-fan-auto]",
+            )
+            .into());
+        }
+
+        // systemd runs this in a fresh process after the service exits.
+        // Do not connect to D-Bus: the daemon may have stopped or crashed.
+        let ctrl = platform_controller()?;
+        ctrl.restore_firmware_fan_control()?;
+        println!("Firmware fan control restored by gigabyted cleanup");
+        return Ok(());
+    }
+
     let is_service = match env::var_os("IS_SERVICE") {
         Some(val) => val == "1",
         None => false,
@@ -33,12 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let connection = Connection::system().await?;
 
     // Setup interface for kernel driver
-    let ctrl = CtrlPlatform::new().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Could not initialize the AORUS platform device",
-        )
-    })?;
+    let ctrl = platform_controller()?;
 
     connection
         .object_server()
@@ -56,4 +69,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     pending::<()>().await;
 
     Ok(())
+}
+
+fn platform_controller() -> Result<CtrlPlatform, std::io::Error> {
+    CtrlPlatform::new().map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not initialize the AORUS platform device",
+        )
+    })
 }

@@ -9,6 +9,7 @@ Type=dbus
 BusName=com.gigabyte.daemon
 Environment=IS_SERVICE=1
 ExecStart=/usr/bin/gigabyted
+ExecStopPost=/usr/bin/gigabyted --restore-fan-auto
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5
